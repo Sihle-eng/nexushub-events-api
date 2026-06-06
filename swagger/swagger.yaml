@@ -1,0 +1,559 @@
+openapi: 3.0.0
+info:
+  title: NexusHub Events API
+  description: RESTful API for community event management with Google OAuth authentication.
+  version: 1.0.0
+  contact:
+    name: Team NexusHub
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: connect.sid
+      description: Session cookie set after Google login
+
+  schemas:
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        googleId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        avatar:
+          type: string
+        role:
+          type: string
+          enum: [user, organizer]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Event:
+      type: object
+      required:
+        - title
+        - description
+        - date
+        - location
+        - maxAttendees
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [Tech, Music, Business, Workshop, Social, Other]
+          default: Other
+        date:
+          type: string
+          format: date-time
+        location:
+          type: string
+        maxAttendees:
+          type: integer
+          minimum: 1
+        currentAttendees:
+          type: integer
+          default: 0
+        organizer:
+          type: object
+          properties:
+            _id:
+              type: string
+            displayName:
+              type: string
+            email:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Registration:
+      type: object
+      properties:
+        _id:
+          type: string
+        user:
+          type: object
+          properties:
+            _id:
+              type: string
+            displayName:
+              type: string
+        event:
+          type: object
+          properties:
+            _id:
+              type: string
+            title:
+              type: string
+        status:
+          type: string
+          enum: [confirmed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Review:
+      type: object
+      required:
+        - rating
+      properties:
+        _id:
+          type: string
+        user:
+          type: object
+          properties:
+            _id:
+              type: string
+            displayName:
+              type: string
+            avatar:
+              type: string
+        event:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+
+  parameters:
+    eventId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Event ID
+    userId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: User ID
+    regId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Registration ID
+    reviewId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Review ID
+
+paths:
+  # Authentication
+  /auth/google:
+    get:
+      summary: Initiate Google OAuth login
+      description: Redirects to Google login page. After success, redirects to /dashboard.
+      responses:
+        302:
+          description: Redirect to Google
+  /auth/google/callback:
+    get:
+      summary: Google OAuth callback
+      description: Internal endpoint - handled by Passport.
+      responses:
+        302:
+          description: Redirect to dashboard
+  /auth/logout:
+    get:
+      summary: Logout current user
+      description: Destroys session and logs out.
+      responses:
+        200:
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /auth/current-user:
+    get:
+      summary: Get currently logged in user
+      description: Returns user object if authenticated, else null.
+      responses:
+        200:
+          description: User data or null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    nullable: true
+
+  # Events
+  /events:
+    get:
+      summary: Get all events
+      responses:
+        200:
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+    post:
+      summary: Create a new event
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - description
+                - date
+                - location
+                - maxAttendees
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                  enum: [Tech, Music, Business, Workshop, Social, Other]
+                date:
+                  type: string
+                  format: date-time
+                location:
+                  type: string
+                maxAttendees:
+                  type: integer
+      responses:
+        201:
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        401:
+          description: Not logged in
+        403:
+          description: User is not an organizer
+        400:
+          description: Validation error
+  /events/{id}:
+    get:
+      summary: Get event by ID
+      parameters:
+        - $ref: '#/components/parameters/eventId'
+      responses:
+        200:
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        404:
+          description: Event not found
+    put:
+      summary: Update event (only organizer who created it)
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/eventId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                date:
+                  type: string
+                  format: date-time
+                location:
+                  type: string
+                maxAttendees:
+                  type: integer
+      responses:
+        200:
+          description: Event updated
+        401:
+          description: Not logged in
+        403:
+          description: Not the owner
+        404:
+          description: Event not found
+    delete:
+      summary: Delete event (only organizer who created it)
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/eventId'
+      responses:
+        200:
+          description: Event deleted
+        401:
+          description: Not logged in
+        403:
+          description: Not the owner
+        404:
+          description: Event not found
+
+  # Users
+  /users:
+    get:
+      summary: Get all users
+      responses:
+        200:
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        200:
+          description: User found
+        404:
+          description: User not found
+    put:
+      summary: Update own user profile
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                avatar:
+                  type: string
+      responses:
+        200:
+          description: User updated
+        401:
+          description: Not logged in
+        403:
+          description: Can only edit own profile
+    delete:
+      summary: Delete own account
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        200:
+          description: User deleted
+        401:
+          description: Not logged in
+        403:
+          description: Can only delete own account
+
+  # Registrations
+  /registrations:
+    get:
+      summary: Get all registrations for the logged-in user
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: List of registrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Registration'
+    post:
+      summary: Register logged-in user for an event
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventId
+              properties:
+                eventId:
+                  type: string
+      responses:
+        201:
+          description: Registered successfully
+        400:
+          description: Already registered or event full
+        401:
+          description: Not logged in
+        404:
+          description: Event not found
+  /registrations/{id}:
+    delete:
+      summary: Cancel a registration
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/regId'
+      responses:
+        200:
+          description: Cancelled
+        401:
+          description: Not logged in
+        403:
+          description: Not your registration
+        404:
+          description: Registration not found
+
+  # Reviews
+  /reviews/event/{eventId}:
+    get:
+      summary: Get all reviews for an event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: List of reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+  /reviews:
+    post:
+      summary: Create a review for an event
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - eventId
+                - rating
+              properties:
+                eventId:
+                  type: string
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+      responses:
+        201:
+          description: Review created
+        400:
+          description: Already reviewed
+        401:
+          description: Not logged in
+  /reviews/{id}:
+    put:
+      summary: Update own review
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/reviewId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+      responses:
+        200:
+          description: Review updated
+        401:
+          description: Not logged in
+        403:
+          description: Not your review
+        404:
+          description: Review not found
+    delete:
+      summary: Delete own review
+      security:
+        - cookieAuth: []
+      parameters:
+        - $ref: '#/components/parameters/reviewId'
+      responses:
+        200:
+          description: Review deleted
+        401:
+          description: Not logged in
+        403:
+          description: Not your review
+        404:
+          description: Review not found
