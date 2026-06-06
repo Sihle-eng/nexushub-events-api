@@ -25,13 +25,23 @@ router.post('/', isLoggedIn, isOrganizer, async (req, res) => {
 });
 
 router.put('/:id', isLoggedIn, async (req, res) => {
-  const event = await Event.findById(req.params.id);
-  if (!event) return res.status(404).json({ message: 'Not found' });
-  if (event.organizer.toString() !== req.user._id.toString())
-    return res.status(403).json({ message: 'Not your event' });
-  Object.assign(event, req.body);
-  await event.save();
-  res.json(event);
+  try {
+    const event = await Event.findById(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    if (event.organizer.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: 'Not your event' });
+    
+    // Update fields
+    Object.assign(event, req.body);
+    await event.save();
+    res.json(event);
+  } catch (err) {
+    // Handle validation errors
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: err.message });
+  }
 });
 
 router.delete('/:id', isLoggedIn, async (req, res) => {
