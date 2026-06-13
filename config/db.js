@@ -6,7 +6,10 @@ const connectDB = async () => {
     console.log('MongoDB connected to database:', mongoose.connection.db.databaseName);
   } catch (err) {
     console.error(err);
-    process.exit(1);
+    // Do not exit the process when running tests
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
   }
 };
 
