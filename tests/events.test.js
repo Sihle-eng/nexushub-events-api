@@ -1,5 +1,20 @@
 const request = require('supertest');
 const app = require('../server');
+const mongoose = require('mongoose');
+
+// Increase timeout for all tests in this file
+jest.setTimeout(15000);
+
+beforeAll(async () => {
+  // Wait for Mongoose connection (app already connects, but just in case)
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(process.env.MONGODB_URI);
+  }
+});
+
+afterAll(async () => {
+  await mongoose.disconnect();
+});
 
 describe('Events API GET endpoints', () => {
   test('GET /events should return 200 and an array', async () => {
