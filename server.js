@@ -15,6 +15,7 @@ const eventRoutes = require("./routes/eventRoutes");
 const userRoutes = require("./routes/userRoutes");
 const registrationRoutes = require("./routes/registrationRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
 
 const app = express();
 
@@ -53,7 +54,7 @@ app.use("/events", eventRoutes);
 app.use("/users", userRoutes);
 app.use("/registrations", registrationRoutes);
 app.use("/reviews", reviewRoutes);
-
+app.use("/categories", categoryRoutes);
 app.get("/", (req, res) => res.send("NexusHub Events API is running"));
 
 const PORT = process.env.PORT || 3000;

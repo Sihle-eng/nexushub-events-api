@@ -46,6 +46,36 @@ router.post('/', isLoggedIn, async (req, res) => {
   }
 });
 
+// PUT update registration status (confirmed/cancelled)
+router.put('/:id', isLoggedIn, async (req, res) => {
+  try {
+    const registration = await Registration.findById(req.params.id);
+    if (!registration) return res.status(404).json({ message: 'Registration not found' });
+    if (registration.user.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: 'Not your registration' });
+
+    const { status } = req.body;
+    if (status && !['confirmed', 'cancelled'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be confirmed or cancelled' });
+    }
+    registration.status = status || registration.status;
+    await registration.save();
+
+    // If cancelling, decrement event attendee count
+    if (status === 'cancelled' && registration.status === 'cancelled') {
+      const event = await Event.findById(registration.event);
+      if (event) {
+        event.currentAttendees = Math.max(0, event.currentAttendees - 1);
+        await event.save();
+      }
+    }
+
+    res.json(registration);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // DELETE cancel registration
 router.delete('/:id', isLoggedIn, async (req, res) => {
   try {
